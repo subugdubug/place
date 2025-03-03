@@ -1,0 +1,47 @@
+{
+  "name": "pixel-place",
+  "version": "1.0.0",
+  "description": "Decentralized, interactive canvas on the Ethereum blockchain",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network mainnet",
+    "verify": "hardhat verify",
+    "verify:script": "hardhat run scripts/verify.js",
+    "verify:sepolia": "hardhat run scripts/verify.js --network sepolia",
+    "node": "hardhat node",
+    "coverage": "hardhat coverage"
+  },
+  "keywords": [
+    "ethereum",
+    "solidity",
+    "blockchain",
+    "canvas",
+    "pixel-art",
+    "dapp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.0",
+    "ganache": "^6.4.5",
+    "tough-cookie": "^5.1.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.13",
+    "@typechain/hardhat": "^9.1.0",
+    "chai": "^4.3.7",
+    "dotenv": "^16.0.3",
+    "ethers": "^6.13.5",
+    "hardhat": "^2.22.19",
+    "hardhat-gas-reporter": "^2.0.0",
+    "solidity-coverage": "^0.8.14"
+  }
+}
