@@ -12,6 +12,8 @@
     "verify": "hardhat verify",
     "verify:script": "hardhat run scripts/verify.js",
     "verify:sepolia": "hardhat run scripts/verify.js --network sepolia",
+    "demo:batch": "hardhat run scripts/demo-batch-paint.js",
+    "demo:batch:sepolia": "hardhat run scripts/demo-batch-paint.js --network sepolia",
     "node": "hardhat node",
     "coverage": "hardhat coverage"
   },
@@ -26,9 +28,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@openzeppelin/contracts": "^4.8.0",
-    "ganache": "^6.4.5",
-    "tough-cookie": "^5.1.2"
+    "@openzeppelin/contracts": "^4.8.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",

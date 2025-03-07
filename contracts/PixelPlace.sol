@@ -22,6 +22,14 @@ contract PixelPlace is Ownable, ReentrancyGuard {
     // Events
     event PixelPainted(uint256 indexed x, uint256 indexed y, bytes3 color, address indexed painter);
     event FeeUpdated(uint256 newFee);
+    event PixelsBatchPainted(uint256 count, address indexed painter);
+
+    // Struct to represent a pixel to be painted
+    struct Pixel {
+        uint256 x;
+        uint256 y;
+        bytes3 color;
+    }
 
     /**
      * @dev Constructor sets initial fee for painting pixels
@@ -49,6 +57,38 @@ contract PixelPlace is Ownable, ReentrancyGuard {
 
         // Emit event
         emit PixelPainted(x, y, color, msg.sender);
+    }
+
+    /**
+     * @dev Paint multiple pixels in a single transaction
+     * @param pixels Array of Pixel structs containing coordinates and colors
+     */
+    function paintPixels(Pixel[] calldata pixels) external payable {
+        // Validate the array isn't empty
+        require(pixels.length > 0, "No pixels to paint");
+        
+        // Validate adequate payment for all pixels
+        require(msg.value >= pixelFee * pixels.length, "Insufficient fee");
+        
+        // Maximum number of pixels to avoid gas limit issues
+        require(pixels.length <= 500, "Too many pixels in a single transaction");
+        
+        // Paint each pixel
+        for (uint256 i = 0; i < pixels.length; i++) {
+            Pixel memory pixel = pixels[i];
+            
+            // Validate coordinates
+            require(pixel.x < WIDTH && pixel.y < HEIGHT, "Coordinates out of bounds");
+            
+            // Update canvas
+            canvas[pixel.x][pixel.y] = pixel.color;
+            
+            // Emit individual pixel painted event
+            emit PixelPainted(pixel.x, pixel.y, pixel.color, msg.sender);
+        }
+        
+        // Emit batch event
+        emit PixelsBatchPainted(pixels.length, msg.sender);
     }
 
     /**

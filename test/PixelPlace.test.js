@@ -104,6 +104,152 @@ describe("PixelPlace", function () {
     });
   });
 
+  describe("Batch Pixel Painting", function () {
+    it("Should allow painting multiple pixels in a single transaction", async function () {
+      const pixels = [
+        { x: 5, y: 10, color: "0x111111" },
+        { x: 25, y: 30, color: "0x222222" },
+        { x: 50, y: 60, color: "0x333333" }
+      ];
+      
+      const totalFee = INITIAL_FEE * BigInt(pixels.length);
+      
+      // Paint the pixels
+      await expect(pixelPlace.connect(user1).paintPixels(pixels, {
+        value: totalFee
+      }))
+        .to.emit(pixelPlace, "PixelsBatchPainted")
+        .withArgs(pixels.length, await user1.getAddress());
+      
+      // Verify each pixel color
+      for (const pixel of pixels) {
+        const pixelColor = await pixelPlace.getPixelColor(pixel.x, pixel.y);
+        expect(pixelColor).to.equal(pixel.color);
+      }
+    });
+
+    it("Should fail batch painting if fee is insufficient", async function () {
+      const pixels = [
+        { x: 5, y: 10, color: "0x111111" },
+        { x: 25, y: 30, color: "0x222222" }
+      ];
+      
+      const insufficientFee = INITIAL_FEE; // Only paying for one pixel
+      
+      // Try to paint with insufficient fee
+      await expect(
+        pixelPlace.connect(user1).paintPixels(pixels, {
+          value: insufficientFee
+        })
+      ).to.be.revertedWith("Insufficient fee");
+    });
+
+    it("Should fail batch painting if any pixel is out of bounds", async function () {
+      const pixels = [
+        { x: 5, y: 10, color: "0x111111" },
+        { x: 105, y: 30, color: "0x222222" } // x is out of bounds
+      ];
+      
+      const totalFee = INITIAL_FEE * BigInt(pixels.length);
+      
+      // Try to paint with a pixel out of bounds
+      await expect(
+        pixelPlace.connect(user1).paintPixels(pixels, {
+          value: totalFee
+        })
+      ).to.be.revertedWith("Coordinates out of bounds");
+    });
+
+    it("Should fail if batch size is too large", async function () {
+      // Create an array of 501 pixels (over the 500 limit)
+      const pixels = [];
+      for (let i = 0; i < 501; i++) {
+        pixels.push({ x: i % 100, y: Math.floor(i / 100), color: "0x123456" });
+      }
+      
+      const totalFee = INITIAL_FEE * BigInt(pixels.length);
+      
+      // Try to paint too many pixels
+      await expect(
+        pixelPlace.connect(user1).paintPixels(pixels, {
+          value: totalFee
+        })
+      ).to.be.revertedWith("Too many pixels in a single transaction");
+    });
+
+    it("Should fail if pixels array is empty", async function () {
+      const pixels = [];
+      
+      // Try to paint with an empty array
+      await expect(
+        pixelPlace.connect(user1).paintPixels(pixels, {
+          value: INITIAL_FEE
+        })
+      ).to.be.revertedWith("No pixels to paint");
+    });
+
+    it("Should emit individual PixelPainted events for each pixel", async function () {
+      const pixels = [
+        { x: 5, y: 10, color: "0x111111" },
+        { x: 25, y: 30, color: "0x222222" }
+      ];
+      
+      const totalFee = INITIAL_FEE * BigInt(pixels.length);
+      
+      // Paint the pixels and check for events
+      const tx = await pixelPlace.connect(user1).paintPixels(pixels, {
+        value: totalFee
+      });
+      
+      const receipt = await tx.wait();
+      
+      // Filter for PixelPainted events
+      const paintedEvents = receipt.logs
+        .filter(log => log.fragment && log.fragment.name === 'PixelPainted')
+        .map(log => pixelPlace.interface.decodeEventLog('PixelPainted', log.data, log.topics));
+      
+      // Should have one event per pixel
+      expect(paintedEvents.length).to.equal(pixels.length);
+      
+      // Check each event matches the expected pixel
+      for (let i = 0; i < pixels.length; i++) {
+        expect(paintedEvents[i].x).to.equal(BigInt(pixels[i].x));
+        expect(paintedEvents[i].y).to.equal(BigInt(pixels[i].y));
+        expect(paintedEvents[i].color).to.equal(pixels[i].color);
+        expect(paintedEvents[i].painter).to.equal(await user1.getAddress());
+      }
+    });
+
+    it("Should allow overwriting existing pixels in batch mode", async function () {
+      // First paint some pixels individually
+      await pixelPlace.connect(user1).paintPixel(5, 10, "0xAAAAAA", {
+        value: INITIAL_FEE
+      });
+      
+      await pixelPlace.connect(user1).paintPixel(25, 30, "0xBBBBBB", {
+        value: INITIAL_FEE
+      });
+      
+      // Now overwrite them in a batch
+      const newPixels = [
+        { x: 5, y: 10, color: "0x111111" },
+        { x: 25, y: 30, color: "0x222222" }
+      ];
+      
+      const totalFee = INITIAL_FEE * BigInt(newPixels.length);
+      
+      await pixelPlace.connect(user2).paintPixels(newPixels, {
+        value: totalFee
+      });
+      
+      // Verify new colors
+      for (const pixel of newPixels) {
+        const pixelColor = await pixelPlace.getPixelColor(pixel.x, pixel.y);
+        expect(pixelColor).to.equal(pixel.color);
+      }
+    });
+  });
+
   describe("Canvas Retrieval", function () {
     it("Should return white for unpainted pixels", async function () {
       const x = 15;
@@ -143,6 +289,30 @@ describe("PixelPlace", function () {
         pixelPlace.getCanvasSection(0, 0, 40, 40) // 1600 pixels, over the 1000 limit
       ).to.be.revertedWith("Requested section too large");
     });
+
+    it("Should show correct canvas after batch painting", async function () {
+      // Paint multiple pixels in a batch
+      const pixels = [
+        { x: 5, y: 5, color: "0x111111" },
+        { x: 6, y: 5, color: "0x222222" },
+        { x: 5, y: 6, color: "0x333333" }
+      ];
+      
+      const totalFee = INITIAL_FEE * BigInt(pixels.length);
+      
+      await pixelPlace.connect(user1).paintPixels(pixels, {
+        value: totalFee
+      });
+      
+      // Get a 2x2 section
+      const section = await pixelPlace.getCanvasSection(5, 5, 2, 2);
+      
+      // Verify section colors
+      expect(section[0][0]).to.equal("0x111111");
+      expect(section[0][1]).to.equal("0x222222");
+      expect(section[1][0]).to.equal("0x333333");
+      expect(section[1][1]).to.equal("0xffffff"); // Default white
+    });
   });
 
   describe("Fee Management", function () {
@@ -164,10 +334,18 @@ describe("PixelPlace", function () {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
-    it("Should allow owner to withdraw fees", async function () {
-      // User paints a pixel, sending ETH to the contract
-      await pixelPlace.connect(user1).paintPixel(5, 10, "0x123456", {
-        value: INITIAL_FEE
+    it("Should allow owner to withdraw fees from batch painting", async function () {
+      // Paint multiple pixels in a batch
+      const pixels = [
+        { x: 5, y: 5, color: "0x111111" },
+        { x: 6, y: 5, color: "0x222222" },
+        { x: 5, y: 6, color: "0x333333" }
+      ];
+      
+      const totalFee = INITIAL_FEE * BigInt(pixels.length);
+      
+      await pixelPlace.connect(user1).paintPixels(pixels, {
+        value: totalFee
       });
       
       const initialBalance = await ethers.provider.getBalance(await owner.getAddress());
@@ -181,7 +359,7 @@ describe("PixelPlace", function () {
       
       // Check owner's balance increased (minus gas costs)
       const finalBalance = await ethers.provider.getBalance(await owner.getAddress());
-      expect(finalBalance >= initialBalance + INITIAL_FEE - gasUsed).to.be.true;
+      expect(finalBalance >= initialBalance + totalFee - gasUsed).to.be.true;
       
       // Contract balance should be zero
       const contractAddress = await pixelPlace.getAddress();
