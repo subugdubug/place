@@ -77,4 +77,4 @@ CONTRACT_ADDRESS=<mainnet_address> npm run verify:script --network mainnet
 
 1. Monitor gas usage for batch transactions vs. individual transactions
 2. Track user adoption of the batch painting feature
-3. Address any reported issues promptly 
+3. Address any reported issues promptly

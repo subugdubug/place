@@ -3,9 +3,11 @@
 ## 1. Project Overview
 
 ### 1.1 Purpose
+
 The goal of this project is to create a decentralized, interactive canvas on the Ethereum blockchain where users can pay a small fee to paint individual pixels in specific colors. The canvas will function similarly to Reddit's r/place or Satoshi's Place, allowing for collaborative pixel art that evolves over time. The smart contract will handle pixel ownership, color updates, and transaction fees, ensuring transparency and immutability.
 
 ### 1.2 Objectives
+
 - **Core Functionality**: Allow users to paint pixels on a fixed-size canvas by specifying coordinates and colors via transactions.
 - **Economic Incentives**: Require a small fee (in ETH) for each pixel painted, with fees going to a configurable recipient (e.g., contract owner or treasury).
 - **Transparency**: Store canvas data on-chain to ensure immutability and decentralization.
@@ -15,6 +17,7 @@ The goal of this project is to create a decentralized, interactive canvas on the
 ## 2. Requirements
 
 ### 2.1 Functional Requirements
+
 1. **Canvas Setup**:
    - Fixed-size canvas (e.g., 100x100 pixels) defined at contract deployment.
    - Each pixel has coordinates (x, y) and a color (e.g., RGB or indexed color palette).
@@ -33,6 +36,7 @@ The goal of this project is to create a decentralized, interactive canvas on the
    - Emit events when fees or settings are updated.
 
 ### 2.2 Non-Functional Requirements
+
 1. **Gas Efficiency**:
    - Minimize gas costs for painting pixels and querying canvas data.
    - Avoid storing unnecessary data on-chain.
@@ -45,6 +49,7 @@ The goal of this project is to create a decentralized, interactive canvas on the
    - Use proper error handling for invalid inputs (e.g., coordinates, fees).
 
 ### 2.3 Constraints
+
 - **Storage Limits**: On-chain storage is expensive, so the canvas size must balance usability with cost.
 - **Color Representation**: Use a compact color format (e.g., 8-bit or 24-bit RGB) to save space.
 - **Ethereum Gas Costs**: Painting and querying must be affordable for users.
@@ -52,12 +57,14 @@ The goal of this project is to create a decentralized, interactive canvas on the
 ## 3. Architecture and Design
 
 ### 3.1 Canvas Representation
+
 - **Size**: The canvas will be a 100x100 grid (10,000 pixels total). This can be adjusted at deployment if needed.
 - **Pixel Data**: Each pixel will store a color value. To save gas, we’ll use a 24-bit RGB color format (3 bytes: 1 byte each for red, green, blue).
 - **Storage**: Use a 2D mapping to store pixel data: `mapping(uint256 => mapping(uint256 => bytes3)) canvas;` where `bytes3` holds the RGB color value.
 - **Default State**: Initially, all pixels are white (`0xFFFFFF`).
 
 ### 3.2 Painting Mechanism
+
 - **Function**: `paintPixel(uint256 x, uint256 y, bytes3 color)` allows users to paint a pixel.
 - **Payment**: Users must send ETH with the transaction, meeting or exceeding the `pixelFee` (configurable by the owner).
 - **Validation**:
@@ -66,16 +73,19 @@ The goal of this project is to create a decentralized, interactive canvas on the
 - **Events**: Emit a `PixelPainted` event with the coordinates, color, and user address.
 
 ### 3.3 Fee Management
+
 - **Fee Configuration**: The contract owner can set the `pixelFee` (in wei) using a restricted function.
 - **Fee Collection**: Fees are accumulated in the contract balance and can be withdrawn by the owner via a `withdraw` function.
 - **Events**: Emit a `FeeUpdated` event when the fee is changed.
 
 ### 3.4 Canvas Data Access
+
 - **Single Pixel Query**: Provide a `getPixelColor(uint256 x, uint256 y)` function to return the color of a pixel.
 - **Batch Query**: Provide a `getCanvasState(uint256 startX, uint256 startY, uint256 width, uint256 height)` function to fetch a rectangular section of the canvas (useful for frontend rendering).
 - **Note**: Due to gas limits, fetching the entire canvas in one call may not be feasible; frontends should fetch data in chunks.
 
 ### 3.5 Security Mechanisms
+
 - **Access Control**: Use OpenZeppelin’s `Ownable` to restrict fee updates and withdrawals to the contract owner.
 - **Input Validation**: Validate all inputs (coordinates, colors, fees) to prevent errors or exploits.
 - **Reentrancy Protection**: Use OpenZeppelin’s `ReentrancyGuard` for the `withdraw` function.
@@ -83,6 +93,7 @@ The goal of this project is to create a decentralized, interactive canvas on the
 ## 4. Implementation Plan
 
 ### 4.1 Smart Contract Structure
+
 Below is a high-level outline of the contract:
 
 ```solidity
@@ -148,6 +159,7 @@ contract PixelPlace is Ownable, ReentrancyGuard {
 ```
 
 ### 4.2 Development Phases
+
 1. **Phase 1: Core Contract Development**
    - Implement the basic contract structure with canvas storage, painting function, and fee management.
    - Add input validation and events.
@@ -162,17 +174,20 @@ contract PixelPlace is Ownable, ReentrancyGuard {
    - Provide ABI and documentation for frontend developers to build a UI for rendering the canvas and submitting transactions.
 
 ### 4.3 Future Enhancements
+
 - **Cooldown Periods**: Add a cooldown period between paints for a given pixel to prevent spam.
 - **Color Palette Restriction**: Restrict colors to a predefined palette to save storage or enforce consistency.
 - **Batch Painting**: Allow users to paint multiple pixels in one transaction (with appropriate fee scaling).
 - **Off-Chain Storage**: Explore hybrid solutions where pixel data is stored off-chain (e.g., IPFS) and only hashes are stored on-chain for gas savings.
 
 ## 5. Risks and Mitigation
+
 - **High Gas Costs**: Painting many pixels could become expensive. Mitigation: Optimize storage and encourage frontend batching for queries.
 - **Spam/Abuse**: Malicious users could spam the canvas. Mitigation: Introduce cooldowns or increasing fees for rapid paints.
 - **Frontend Dependence**: The contract relies on a frontend for usability. Mitigation: Ensure the contract is usable via direct calls and document its functions well.
 
 ## 6. Deployment and Maintenance
+
 - **Deployment**: Deploy on Ethereum mainnet or a layer-2 solution (e.g., Optimism, Arbitrum) for lower gas costs.
 - **Initial Fee**: Set an initial `pixelFee` (e.g., 0.001 ETH) to balance accessibility and spam prevention.
 - **Monitoring**: Monitor contract usage and collected fees to adjust `pixelFee` as needed.

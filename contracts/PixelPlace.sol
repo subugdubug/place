@@ -12,15 +12,22 @@ contract PixelPlace is Ownable, ReentrancyGuard {
     // Canvas dimensions
     uint256 public constant WIDTH = 100;
     uint256 public constant HEIGHT = 100;
+    
+    // Alpha value constants - 0 is fully transparent, 255 is fully opaque
+    uint8 public constant ALPHA_TRANSPARENT = 0;
+    uint8 public constant ALPHA_OPAQUE = 255;
+    
+    // Default background color (white fully transparent)
+    bytes4 public constant DEFAULT_COLOR = bytes4(0xFFFFFF00);
 
     // Fee to paint a pixel (in wei)
     uint256 public pixelFee;
 
-    // Canvas storage: mapping of (x, y) to color (bytes3 for RGB)
-    mapping(uint256 => mapping(uint256 => bytes3)) private canvas;
+    // Canvas storage: mapping of (x, y) to color (bytes4 for RGBA)
+    mapping(uint256 => mapping(uint256 => bytes4)) private canvas;
 
     // Events
-    event PixelPainted(uint256 indexed x, uint256 indexed y, bytes3 color, address indexed painter);
+    event PixelPainted(uint256 indexed x, uint256 indexed y, bytes4 color, address indexed painter);
     event FeeUpdated(uint256 newFee);
     event PixelsBatchPainted(uint256 count, address indexed painter);
 
@@ -28,7 +35,7 @@ contract PixelPlace is Ownable, ReentrancyGuard {
     struct Pixel {
         uint256 x;
         uint256 y;
-        bytes3 color;
+        bytes4 color;
     }
 
     /**
@@ -43,9 +50,9 @@ contract PixelPlace is Ownable, ReentrancyGuard {
      * @dev Paint a pixel at coordinates (x, y) with the specified color
      * @param x The x-coordinate of the pixel (0 to WIDTH-1)
      * @param y The y-coordinate of the pixel (0 to HEIGHT-1)
-     * @param color The RGB color to paint (as bytes3)
+     * @param color The RGBA color to paint (as bytes4)
      */
-    function paintPixel(uint256 x, uint256 y, bytes3 color) external payable {
+    function paintPixel(uint256 x, uint256 y, bytes4 color) external payable {
         // Validate coordinates
         require(x < WIDTH && y < HEIGHT, "Coordinates out of bounds");
         
@@ -95,11 +102,49 @@ contract PixelPlace is Ownable, ReentrancyGuard {
      * @dev Get the color of a specific pixel
      * @param x The x-coordinate of the pixel
      * @param y The y-coordinate of the pixel
-     * @return The RGB color of the pixel (defaults to white if never painted)
+     * @return The RGBA color of the pixel (defaults to transparent white if never painted)
      */
-    function getPixelColor(uint256 x, uint256 y) external view returns (bytes3) {
+    function getPixelColor(uint256 x, uint256 y) external view returns (bytes4) {
         require(x < WIDTH && y < HEIGHT, "Coordinates out of bounds");
-        return canvas[x][y] == 0 ? bytes3(0xFFFFFF) : canvas[x][y]; // Default to white
+        return canvas[x][y] == 0 ? DEFAULT_COLOR : canvas[x][y]; // Default to transparent white
+    }
+
+    /**
+     * @dev Check if a pixel has been painted (has non-zero alpha)
+     * @param x The x-coordinate of the pixel
+     * @param y The y-coordinate of the pixel
+     * @return True if the pixel has been painted, false otherwise
+     */
+    function isPixelPainted(uint256 x, uint256 y) external view returns (bool) {
+        require(x < WIDTH && y < HEIGHT, "Coordinates out of bounds");
+        // Extract the alpha channel (last byte) and check if it's not zero
+        bytes4 color = canvas[x][y];
+        uint8 alpha = uint8(color[3]);
+        return alpha > 0;
+    }
+
+    /**
+     * @dev Extract the RGB components from the stored RGBA color
+     * @param x The x-coordinate of the pixel
+     * @param y The y-coordinate of the pixel
+     * @return r The red component (0-255)
+     * @return g The green component (0-255)
+     * @return b The blue component (0-255)
+     * @return a The alpha component (0-255)
+     */
+    function getPixelRGBA(uint256 x, uint256 y) external view returns (uint8 r, uint8 g, uint8 b, uint8 a) {
+        require(x < WIDTH && y < HEIGHT, "Coordinates out of bounds");
+        
+        bytes4 color = canvas[x][y];
+        if (color == 0) {
+            color = DEFAULT_COLOR;
+        }
+        
+        // Extract individual RGBA components
+        r = uint8(color[0]);
+        g = uint8(color[1]);
+        b = uint8(color[2]);
+        a = uint8(color[3]);
     }
 
     /**
@@ -115,7 +160,7 @@ contract PixelPlace is Ownable, ReentrancyGuard {
         uint256 startY,
         uint256 width,
         uint256 height
-    ) external view returns (bytes3[][] memory) {
+    ) external view returns (bytes4[][] memory) {
         require(startX + width <= WIDTH, "X coordinates out of bounds");
         require(startY + height <= HEIGHT, "Y coordinates out of bounds");
         require(width > 0 && height > 0, "Width and height must be positive");
@@ -123,13 +168,13 @@ contract PixelPlace is Ownable, ReentrancyGuard {
         // Due to gas limitations, restrict the size of sections that can be fetched
         require(width * height <= 1000, "Requested section too large");
         
-        bytes3[][] memory section = new bytes3[][](height);
+        bytes4[][] memory section = new bytes4[][](height);
         
         for (uint256 y = 0; y < height; y++) {
-            section[y] = new bytes3[](width);
+            section[y] = new bytes4[](width);
             for (uint256 x = 0; x < width; x++) {
-                bytes3 color = canvas[startX + x][startY + y];
-                section[y][x] = color == 0 ? bytes3(0xFFFFFF) : color; // Default to white
+                bytes4 color = canvas[startX + x][startY + y];
+                section[y][x] = color == 0 ? DEFAULT_COLOR : color; // Default to transparent white
             }
         }
         

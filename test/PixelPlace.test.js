@@ -7,6 +7,13 @@ describe("PixelPlace", function () {
   let user1;
   let user2;
   const INITIAL_FEE = ethers.parseEther("0.001"); // 0.001 ETH
+  
+  // Default color constants - using lowercase to match contract return values
+  const DEFAULT_COLOR = "0xffffff00"; // White with 0 alpha (transparent)
+  const BLACK_OPAQUE = "0x000000ff"; // Black with full alpha (opaque)
+  const RED_OPAQUE = "0xff0000ff"; // Red with full alpha (opaque)
+  const GREEN_OPAQUE = "0x00ff00ff"; // Green with full alpha (opaque)
+  const BLUE_OPAQUE = "0x0000ffff"; // Blue with full alpha (opaque)
 
   beforeEach(async function () {
     [owner, user1, user2] = await ethers.getSigners();
@@ -16,6 +23,11 @@ describe("PixelPlace", function () {
     pixelPlace = await PixelPlace.deploy(INITIAL_FEE);
     await pixelPlace.waitForDeployment();
   });
+
+  // Helper function to normalize color case
+  function normalizeColorCase(color) {
+    return color.toLowerCase();
+  }
 
   describe("Deployment", function () {
     it("Should set the correct initial fee", async function () {
@@ -30,13 +42,18 @@ describe("PixelPlace", function () {
       expect(await pixelPlace.WIDTH()).to.equal(100);
       expect(await pixelPlace.HEIGHT()).to.equal(100);
     });
+    
+    it("Should have the correct default color", async function () {
+      const contractDefaultColor = await pixelPlace.DEFAULT_COLOR();
+      expect(normalizeColorCase(contractDefaultColor)).to.equal(DEFAULT_COLOR);
+    });
   });
 
   describe("Pixel Painting", function () {
     it("Should allow painting a pixel with correct fee", async function () {
       const x = 5;
       const y = 10;
-      const color = "0x123456"; // RGB color
+      const color = RED_OPAQUE; // RGBA color
       
       // Paint the pixel
       await expect(pixelPlace.connect(user1).paintPixel(x, y, color, {
@@ -47,13 +64,13 @@ describe("PixelPlace", function () {
       
       // Verify the pixel color
       const pixelColor = await pixelPlace.getPixelColor(x, y);
-      expect(pixelColor).to.equal(color);
+      expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(color));
     });
 
     it("Should fail if fee is insufficient", async function () {
       const x = 5;
       const y = 10;
-      const color = "0x123456"; // RGB color
+      const color = RED_OPAQUE; // RGBA color
       const insufficientFee = ethers.parseEther("0.0005"); // Less than required
       
       // Try to paint with insufficient fee
@@ -65,7 +82,7 @@ describe("PixelPlace", function () {
     });
 
     it("Should fail if coordinates are out of bounds", async function () {
-      const color = "0x123456"; // RGB color
+      const color = RED_OPAQUE; // RGBA color
       
       // Try to paint with x out of bounds
       await expect(
@@ -85,8 +102,8 @@ describe("PixelPlace", function () {
     it("Should allow overwriting an existing pixel", async function () {
       const x = 5;
       const y = 10;
-      const color1 = "0x123456"; // First color
-      const color2 = "0x654321"; // Second color
+      const color1 = RED_OPAQUE; // First color
+      const color2 = BLUE_OPAQUE; // Second color
       
       // Paint the pixel first time
       await pixelPlace.connect(user1).paintPixel(x, y, color1, {
@@ -100,16 +117,53 @@ describe("PixelPlace", function () {
       
       // Verify the pixel has the new color
       const pixelColor = await pixelPlace.getPixelColor(x, y);
-      expect(pixelColor).to.equal(color2);
+      expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(color2));
+    });
+    
+    it("Should allow painting with black color", async function () {
+      const x = 15;
+      const y = 25;
+      
+      // Paint with black color (previously problematic)
+      await pixelPlace.connect(user1).paintPixel(x, y, BLACK_OPAQUE, {
+        value: INITIAL_FEE
+      });
+      
+      // Verify the pixel is black
+      const pixelColor = await pixelPlace.getPixelColor(x, y);
+      expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(BLACK_OPAQUE));
+      
+      // Verify the pixel is marked as painted
+      expect(await pixelPlace.isPixelPainted(x, y)).to.be.true;
+    });
+    
+    it("Should return RGBA components correctly", async function () {
+      const x = 25;
+      const y = 35;
+      const color = "0x12345678"; // Custom RGBA color
+      
+      // Paint the pixel
+      await pixelPlace.connect(user1).paintPixel(x, y, color, {
+        value: INITIAL_FEE
+      });
+      
+      // Get RGBA components
+      const [r, g, b, a] = await pixelPlace.getPixelRGBA(x, y);
+      
+      // Verify components
+      expect(r).to.equal(0x12);
+      expect(g).to.equal(0x34);
+      expect(b).to.equal(0x56);
+      expect(a).to.equal(0x78);
     });
   });
 
   describe("Batch Pixel Painting", function () {
     it("Should allow painting multiple pixels in a single transaction", async function () {
       const pixels = [
-        { x: 5, y: 10, color: "0x111111" },
-        { x: 25, y: 30, color: "0x222222" },
-        { x: 50, y: 60, color: "0x333333" }
+        { x: 5, y: 10, color: RED_OPAQUE },
+        { x: 25, y: 30, color: GREEN_OPAQUE },
+        { x: 50, y: 60, color: BLUE_OPAQUE }
       ];
       
       const totalFee = INITIAL_FEE * BigInt(pixels.length);
@@ -124,14 +178,14 @@ describe("PixelPlace", function () {
       // Verify each pixel color
       for (const pixel of pixels) {
         const pixelColor = await pixelPlace.getPixelColor(pixel.x, pixel.y);
-        expect(pixelColor).to.equal(pixel.color);
+        expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(pixel.color));
       }
     });
 
     it("Should fail batch painting if fee is insufficient", async function () {
       const pixels = [
-        { x: 5, y: 10, color: "0x111111" },
-        { x: 25, y: 30, color: "0x222222" }
+        { x: 5, y: 10, color: RED_OPAQUE },
+        { x: 25, y: 30, color: GREEN_OPAQUE }
       ];
       
       const insufficientFee = INITIAL_FEE; // Only paying for one pixel
@@ -146,8 +200,8 @@ describe("PixelPlace", function () {
 
     it("Should fail batch painting if any pixel is out of bounds", async function () {
       const pixels = [
-        { x: 5, y: 10, color: "0x111111" },
-        { x: 105, y: 30, color: "0x222222" } // x is out of bounds
+        { x: 5, y: 10, color: RED_OPAQUE },
+        { x: 105, y: 30, color: GREEN_OPAQUE } // x is out of bounds
       ];
       
       const totalFee = INITIAL_FEE * BigInt(pixels.length);
@@ -164,7 +218,7 @@ describe("PixelPlace", function () {
       // Create an array of 501 pixels (over the 500 limit)
       const pixels = [];
       for (let i = 0; i < 501; i++) {
-        pixels.push({ x: i % 100, y: Math.floor(i / 100), color: "0x123456" });
+        pixels.push({ x: i % 100, y: Math.floor(i / 100), color: RED_OPAQUE });
       }
       
       const totalFee = INITIAL_FEE * BigInt(pixels.length);
@@ -190,8 +244,8 @@ describe("PixelPlace", function () {
 
     it("Should emit individual PixelPainted events for each pixel", async function () {
       const pixels = [
-        { x: 5, y: 10, color: "0x111111" },
-        { x: 25, y: 30, color: "0x222222" }
+        { x: 5, y: 10, color: RED_OPAQUE },
+        { x: 25, y: 30, color: GREEN_OPAQUE }
       ];
       
       const totalFee = INITIAL_FEE * BigInt(pixels.length);
@@ -215,25 +269,25 @@ describe("PixelPlace", function () {
       for (let i = 0; i < pixels.length; i++) {
         expect(paintedEvents[i].x).to.equal(BigInt(pixels[i].x));
         expect(paintedEvents[i].y).to.equal(BigInt(pixels[i].y));
-        expect(paintedEvents[i].color).to.equal(pixels[i].color);
+        expect(normalizeColorCase(paintedEvents[i].color)).to.equal(normalizeColorCase(pixels[i].color));
         expect(paintedEvents[i].painter).to.equal(await user1.getAddress());
       }
     });
 
     it("Should allow overwriting existing pixels in batch mode", async function () {
       // First paint some pixels individually
-      await pixelPlace.connect(user1).paintPixel(5, 10, "0xAAAAAA", {
+      await pixelPlace.connect(user1).paintPixel(5, 10, "0xaaaaaaff", {
         value: INITIAL_FEE
       });
       
-      await pixelPlace.connect(user1).paintPixel(25, 30, "0xBBBBBB", {
+      await pixelPlace.connect(user1).paintPixel(25, 30, "0xbbbbbbff", {
         value: INITIAL_FEE
       });
       
       // Now overwrite them in a batch
       const newPixels = [
-        { x: 5, y: 10, color: "0x111111" },
-        { x: 25, y: 30, color: "0x222222" }
+        { x: 5, y: 10, color: RED_OPAQUE },
+        { x: 25, y: 30, color: GREEN_OPAQUE }
       ];
       
       const totalFee = INITIAL_FEE * BigInt(newPixels.length);
@@ -245,32 +299,35 @@ describe("PixelPlace", function () {
       // Verify new colors
       for (const pixel of newPixels) {
         const pixelColor = await pixelPlace.getPixelColor(pixel.x, pixel.y);
-        expect(pixelColor).to.equal(pixel.color);
+        expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(pixel.color));
       }
     });
   });
 
   describe("Canvas Retrieval", function () {
-    it("Should return white for unpainted pixels", async function () {
+    it("Should return default color for unpainted pixels", async function () {
       const x = 15;
       const y = 20;
       
       // Get an unpainted pixel
       const pixelColor = await pixelPlace.getPixelColor(x, y);
-      expect(pixelColor).to.equal("0xffffff"); // White
+      expect(normalizeColorCase(pixelColor)).to.equal(DEFAULT_COLOR);
+      
+      // Verify it's not marked as painted
+      expect(await pixelPlace.isPixelPainted(x, y)).to.be.false;
     });
 
     it("Should retrieve a section of the canvas", async function () {
       // Paint a few pixels
-      await pixelPlace.connect(user1).paintPixel(5, 5, "0x111111", {
+      await pixelPlace.connect(user1).paintPixel(5, 5, RED_OPAQUE, {
         value: INITIAL_FEE
       });
       
-      await pixelPlace.connect(user1).paintPixel(6, 5, "0x222222", {
+      await pixelPlace.connect(user1).paintPixel(6, 5, GREEN_OPAQUE, {
         value: INITIAL_FEE
       });
       
-      await pixelPlace.connect(user1).paintPixel(5, 6, "0x333333", {
+      await pixelPlace.connect(user1).paintPixel(5, 6, BLUE_OPAQUE, {
         value: INITIAL_FEE
       });
       
@@ -278,10 +335,10 @@ describe("PixelPlace", function () {
       const section = await pixelPlace.getCanvasSection(5, 5, 2, 2);
       
       // Verify section colors
-      expect(section[0][0]).to.equal("0x111111");
-      expect(section[0][1]).to.equal("0x222222");
-      expect(section[1][0]).to.equal("0x333333");
-      expect(section[1][1]).to.equal("0xffffff"); // Default white
+      expect(normalizeColorCase(section[0][0])).to.equal(normalizeColorCase(RED_OPAQUE));
+      expect(normalizeColorCase(section[0][1])).to.equal(normalizeColorCase(GREEN_OPAQUE));
+      expect(normalizeColorCase(section[1][0])).to.equal(normalizeColorCase(BLUE_OPAQUE));
+      expect(normalizeColorCase(section[1][1])).to.equal(DEFAULT_COLOR); // Default transparent white
     });
 
     it("Should fail if requested section is too large", async function () {
@@ -293,9 +350,9 @@ describe("PixelPlace", function () {
     it("Should show correct canvas after batch painting", async function () {
       // Paint multiple pixels in a batch
       const pixels = [
-        { x: 5, y: 5, color: "0x111111" },
-        { x: 6, y: 5, color: "0x222222" },
-        { x: 5, y: 6, color: "0x333333" }
+        { x: 5, y: 5, color: RED_OPAQUE },
+        { x: 6, y: 5, color: GREEN_OPAQUE },
+        { x: 5, y: 6, color: BLUE_OPAQUE }
       ];
       
       const totalFee = INITIAL_FEE * BigInt(pixels.length);
@@ -308,10 +365,69 @@ describe("PixelPlace", function () {
       const section = await pixelPlace.getCanvasSection(5, 5, 2, 2);
       
       // Verify section colors
-      expect(section[0][0]).to.equal("0x111111");
-      expect(section[0][1]).to.equal("0x222222");
-      expect(section[1][0]).to.equal("0x333333");
-      expect(section[1][1]).to.equal("0xffffff"); // Default white
+      expect(normalizeColorCase(section[0][0])).to.equal(normalizeColorCase(RED_OPAQUE));
+      expect(normalizeColorCase(section[0][1])).to.equal(normalizeColorCase(GREEN_OPAQUE));
+      expect(normalizeColorCase(section[1][0])).to.equal(normalizeColorCase(BLUE_OPAQUE));
+      expect(normalizeColorCase(section[1][1])).to.equal(DEFAULT_COLOR); // Default transparent white
+    });
+  });
+
+  describe("Alpha Channel Functionality", function() {
+    it("Should correctly identify painted vs unpainted pixels", async function() {
+      const x1 = 10;
+      const y1 = 10;
+      const x2 = 20;
+      const y2 = 20;
+      
+      // Paint a pixel with full opacity
+      await pixelPlace.connect(user1).paintPixel(x1, y1, RED_OPAQUE, {
+        value: INITIAL_FEE
+      });
+      
+      // Check if the pixel is painted
+      expect(await pixelPlace.isPixelPainted(x1, y1)).to.be.true;
+      expect(await pixelPlace.isPixelPainted(x2, y2)).to.be.false;
+    });
+    
+    it("Should allow painting with different alpha values", async function() {
+      const x = 30;
+      const y = 30;
+      
+      // Semi-transparent red
+      const semiTransparentRed = "0xff000080"; // 50% opacity
+      
+      await pixelPlace.connect(user1).paintPixel(x, y, semiTransparentRed, {
+        value: INITIAL_FEE
+      });
+      
+      // Verify color and components
+      const pixelColor = await pixelPlace.getPixelColor(x, y);
+      expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(semiTransparentRed));
+      
+      const [r, g, b, a] = await pixelPlace.getPixelRGBA(x, y);
+      expect(r).to.equal(0xFF);
+      expect(g).to.equal(0x00);
+      expect(b).to.equal(0x00);
+      expect(a).to.equal(0x80);
+    });
+    
+    it("Should allow painting with fully transparent pixels", async function() {
+      const x = 40;
+      const y = 40;
+      
+      // Red with zero opacity (fully transparent)
+      const transparentRed = "0xff000000"; // 0% opacity
+      
+      await pixelPlace.connect(user1).paintPixel(x, y, transparentRed, {
+        value: INITIAL_FEE
+      });
+      
+      // Verify color
+      const pixelColor = await pixelPlace.getPixelColor(x, y);
+      expect(normalizeColorCase(pixelColor)).to.equal(normalizeColorCase(transparentRed));
+      
+      // Even though it has color data, it should be considered unpainted due to 0 alpha
+      expect(await pixelPlace.isPixelPainted(x, y)).to.be.false;
     });
   });
 
@@ -337,9 +453,9 @@ describe("PixelPlace", function () {
     it("Should allow owner to withdraw fees from batch painting", async function () {
       // Paint multiple pixels in a batch
       const pixels = [
-        { x: 5, y: 5, color: "0x111111" },
-        { x: 6, y: 5, color: "0x222222" },
-        { x: 5, y: 6, color: "0x333333" }
+        { x: 5, y: 5, color: RED_OPAQUE },
+        { x: 6, y: 5, color: GREEN_OPAQUE },
+        { x: 5, y: 6, color: BLUE_OPAQUE }
       ];
       
       const totalFee = INITIAL_FEE * BigInt(pixels.length);
@@ -369,7 +485,7 @@ describe("PixelPlace", function () {
 
     it("Should prevent non-owners from withdrawing fees", async function () {
       // User paints a pixel
-      await pixelPlace.connect(user1).paintPixel(5, 10, "0x123456", {
+      await pixelPlace.connect(user1).paintPixel(5, 10, RED_OPAQUE, {
         value: INITIAL_FEE
       });
       

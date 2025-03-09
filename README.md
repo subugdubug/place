@@ -6,6 +6,7 @@ PixelPlace is a decentralized, interactive canvas on the Ethereum blockchain whe
 
 - Fixed-size canvas (100x100 pixels)
 - Pay a small fee in ETH to paint a pixel
+- Full RGBA color support with alpha transparency
 - Batch painting allows multiple pixels to be painted in a single transaction
 - Any pixel can be repainted by anyone (no ownership restrictions)
 - Canvas data is stored entirely on-chain
@@ -14,7 +15,8 @@ PixelPlace is a decentralized, interactive canvas on the Ethereum blockchain whe
 ## Technical Implementation
 
 The contract is implemented in Solidity and uses:
-- 24-bit RGB color format (3 bytes for red, green, blue)
+- 32-bit RGBA color format (4 bytes: red, green, blue, alpha)
+- Alpha channel for transparency control (0 = fully transparent, 255 = fully opaque)
 - Efficient storage using nested mappings
 - Batch pixel painting for gas efficiency
 - OpenZeppelin libraries for security (Ownable, ReentrancyGuard)
@@ -84,9 +86,11 @@ After deployment, you can interact with the contract using the demo scripts:
 
 ### Core Functions
 
-- `paintPixel(uint256 x, uint256 y, bytes3 color) payable`: Paint a single pixel at (x,y) with the specified RGB color
+- `paintPixel(uint256 x, uint256 y, bytes4 color) payable`: Paint a single pixel at (x,y) with the specified RGBA color
 - `paintPixels(Pixel[] pixels) payable`: Paint multiple pixels in a single transaction with the specified coordinates and colors
 - `getPixelColor(uint256 x, uint256 y)`: Get the color of a pixel at (x,y)
+- `isPixelPainted(uint256 x, uint256 y)`: Check if a pixel has been painted (has non-zero alpha)
+- `getPixelRGBA(uint256 x, uint256 y)`: Get the individual RGBA components of a pixel
 - `getCanvasSection(uint256 startX, uint256 startY, uint256 width, uint256 height)`: Get a section of the canvas
 
 ### Data Structures
@@ -96,13 +100,21 @@ After deployment, you can interact with the contract using the demo scripts:
   struct Pixel {
       uint256 x;
       uint256 y;
-      bytes3 color;
+      bytes4 color;  // RGBA format
   }
   ```
 
+### Constants
+
+- `WIDTH`: Canvas width (100 pixels)
+- `HEIGHT`: Canvas height (100 pixels)
+- `ALPHA_TRANSPARENT`: Alpha value for fully transparent pixels (0)
+- `ALPHA_OPAQUE`: Alpha value for fully opaque pixels (255)
+- `DEFAULT_COLOR`: Default color for unpainted pixels (transparent white: 0xFFFFFF00)
+
 ### Events
 
-- `PixelPainted(uint256 indexed x, uint256 indexed y, bytes3 color, address indexed painter)`: Emitted when a single pixel is painted
+- `PixelPainted(uint256 indexed x, uint256 indexed y, bytes4 color, address indexed painter)`: Emitted when a single pixel is painted
 - `PixelsBatchPainted(uint256 count, address indexed painter)`: Emitted when a batch of pixels is painted
 - `FeeUpdated(uint256 newFee)`: Emitted when the pixel fee is updated
 
@@ -119,14 +131,15 @@ Frontends can interact with the contract by:
 3. Using `paintPixels` to paint multiple pixels in a single transaction for better gas efficiency
 4. Listening to `PixelPainted` and `PixelsBatchPainted` events to update the display in real-time
 
-### Example of Batch Painting
+### Example of Batch Painting with Alpha Channel
 
 ```javascript
-// Example of painting multiple pixels in a batch
+// Example of painting multiple pixels in a batch with RGBA colors
 const pixels = [
-  { x: 5, y: 10, color: "0x111111" },
-  { x: 6, y: 10, color: "0x222222" },
-  { x: 7, y: 10, color: "0x333333" }
+  { x: 5, y: 10, color: "0xff0000ff" },  // Red (fully opaque)
+  { x: 6, y: 10, color: "0x00ff00ff" },  // Green (fully opaque)
+  { x: 7, y: 10, color: "0x0000ffff" },  // Blue (fully opaque)
+  { x: 8, y: 10, color: "0xffff0080" }   // Yellow (semi-transparent)
 ];
 
 // Calculate the total fee
@@ -137,10 +150,35 @@ const totalFee = pixelFee * BigInt(pixels.length);
 await pixelPlace.paintPixels(pixels, { value: totalFee });
 ```
 
+### Working with Alpha Transparency
+
+```javascript
+// Check if a pixel has been painted (has non-zero alpha)
+const isPainted = await pixelPlace.isPixelPainted(x, y);
+
+// Get individual RGBA components
+const [red, green, blue, alpha] = await pixelPlace.getPixelRGBA(x, y);
+
+// Create a color with 50% transparency
+const halfTransparentRed = "0xff0000" + "80"; // Red with alpha=128 (50%)
+
+// Note: Solidity returns hex values in lowercase
+// When comparing colors, you should normalize the case
+function normalizeColorCase(color) {
+  return color.toLowerCase();
+}
+
+// Example of comparing colors
+const pixelColor = await pixelPlace.getPixelColor(x, y);
+if (normalizeColorCase(pixelColor) === normalizeColorCase(expectedColor)) {
+  // Colors match
+}
+```
+
 ## Gas Optimization
 
 To keep gas costs manageable:
-- The contract uses `bytes3` for color storage (more compact than `uint256`)
+- The contract uses `bytes4` for RGBA color storage
 - Canvas sections are limited to 1000 pixels per query to prevent excessive gas usage
 - Batch painting allows multiple pixels to be updated in a single transaction, reducing overall gas costs
 - Pixel painting has minimal overhead beyond storage updates
@@ -150,6 +188,7 @@ To keep gas costs manageable:
 - Batch painting is limited to 500 pixels per transaction to prevent exceeding gas limits
 - Individual pixels in a batch must still be within the canvas dimensions (0 to 99 for both x and y)
 - All pixels in a batch require the same fee per pixel
+- Color values returned by the contract are in lowercase, so comparisons should be case-insensitive
 
 ## License
 
