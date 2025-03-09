@@ -15,6 +15,7 @@ PixelPlace is a decentralized, interactive canvas on the Ethereum blockchain whe
 ## Technical Implementation
 
 The contract is implemented in Solidity and uses:
+
 - 32-bit RGBA color format (4 bytes: red, green, blue, alpha)
 - Alpha channel for transparency control (0 = fully transparent, 255 = fully opaque)
 - Efficient storage using nested mappings
@@ -33,16 +34,19 @@ The contract is implemented in Solidity and uses:
 ### Installation
 
 1. Clone the repository
+
    ```bash
    git clone <repository-url>
    ```
 
 2. Install dependencies
+
    ```bash
    npm install
    ```
 
 3. Compile the contracts
+
    ```bash
    npx hardhat compile
    ```
@@ -62,6 +66,7 @@ npx hardhat test
 2. Create a `.env` file with your private key and API endpoints (see `.env.example`)
 
 3. Deploy to a network
+
    ```bash
    npx hardhat run scripts/deploy.js --network <network-name>
    ```
@@ -73,11 +78,13 @@ After deployment, you can interact with the contract using the demo scripts:
 1. Set the `CONTRACT_ADDRESS` in your `.env` file to your deployed contract address
 
 2. Run the batch painting demo:
+
    ```bash
    npm run demo:batch
    ```
 
    Or on a specific network (e.g., Sepolia):
+
    ```bash
    npm run demo:batch:sepolia
    ```
@@ -96,6 +103,7 @@ After deployment, you can interact with the contract using the demo scripts:
 ### Data Structures
 
 - `Pixel`: A struct representing a pixel to be painted:
+
   ```solidity
   struct Pixel {
       uint256 x;
@@ -126,6 +134,7 @@ After deployment, you can interact with the contract using the demo scripts:
 ## Frontend Integration
 
 Frontends can interact with the contract by:
+
 1. Querying the current state of the canvas using `getPixelColor` or `getCanvasSection`
 2. Sending transactions to `paintPixel` with proper ETH value to paint individual pixels
 3. Using `paintPixels` to paint multiple pixels in a single transaction for better gas efficiency
@@ -178,6 +187,7 @@ if (normalizeColorCase(pixelColor) === normalizeColorCase(expectedColor)) {
 ## Gas Optimization
 
 To keep gas costs manageable:
+
 - The contract uses `bytes4` for RGBA color storage
 - Canvas sections are limited to 1000 pixels per query to prevent excessive gas usage
 - Batch painting allows multiple pixels to be updated in a single transaction, reducing overall gas costs
@@ -197,7 +207,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Future Enhancements
 
 Possible future improvements:
+
 - Cooldown periods between paintings of the same pixel
 - Color palette restrictions to save gas
 - Integration with Layer 2 solutions for scalability
-- Dynamic fee adjustment based on pixel location or canvas activity 
+- Dynamic fee adjustment based on pixel location or canvas activity
